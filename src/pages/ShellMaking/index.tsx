@@ -5,6 +5,7 @@ import DataTable from '@/components/DataTable';
 import FormModal, { type ValidationRule, type FormSection } from '@/components/FormModal';
 import { formatDateTime, generateId } from '@/utils/format';
 import type { Column } from '@/components/DataTable';
+import { Link } from 'react-router-dom';
 import type { ShellMakingRecord } from '@/types';
 import { Plus, Eye, Layers, Droplets, Clock, Thermometer, Droplet } from 'lucide-react';
 
@@ -599,9 +600,9 @@ export default function ShellMaking() {
       render: (record) => {
         const order = getWorkOrderById(record.workOrderId);
         return (
-          <span className="text-sm font-medium text-blue-600">
+          <Link to={`/work-order/${record.workOrderId}`} className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">
             {order?.orderNo || '-'}
-          </span>
+          </Link>
         );
       },
     },
@@ -695,6 +696,7 @@ export default function ShellMaking() {
       <PageHeader
         title="制壳挂砂"
         description="管理制壳挂砂全过程，包括层数管控、粘度监控和干燥管理"
+        showAddButton={false}
         extraActions={
           <button
             onClick={addBtn.onClick}
@@ -763,15 +765,6 @@ export default function ShellMaking() {
                   searchPlaceholder="搜索工单编号..."
                   searchValue={searchText}
                   onSearchChange={setSearchText}
-                  extraActions={
-                    <button
-                      onClick={() => setShowAddLayers(true)}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-                    >
-                      <Plus size={16} />
-                      新增层数记录
-                    </button>
-                  }
                 />
                 <DataTable
                   columns={columns}
@@ -811,13 +804,6 @@ export default function ShellMaking() {
               <div className="bg-slate-50 rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h4 className="text-sm font-semibold text-slate-700">粘度监测记录</h4>
-                  <button
-                    onClick={() => setShowAddViscosity(true)}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-                  >
-                    <Plus size={14} />
-                    新增粘度记录
-                  </button>
                 </div>
                 <div className="space-y-2">
                   {viscosityData.length === 0 ? (
@@ -932,13 +918,6 @@ export default function ShellMaking() {
               <div className="overflow-x-auto">
                 <div className="flex items-center justify-between mb-4">
                   <h4 className="text-sm font-semibold text-slate-700">干燥进度表</h4>
-                  <button
-                    onClick={() => setShowAddDrying(true)}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-                  >
-                    <Plus size={14} />
-                    新增干燥记录
-                  </button>
                 </div>
                 <table className="w-full bg-white rounded-xl border border-slate-200 overflow-hidden">
                   <thead className="bg-slate-50">
@@ -1075,9 +1054,9 @@ export default function ShellMaking() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-slate-500">工单编号</p>
-                  <p className="text-base font-medium text-slate-800">
+                  <Link to={`/work-order/${selectedRecord.workOrderId}`} className="text-base font-medium text-blue-600 hover:text-blue-800 hover:underline">
                     {getWorkOrderById(selectedRecord.workOrderId)?.orderNo || '-'}
-                  </p>
+                  </Link>
                 </div>
                 <div>
                   <p className="text-sm text-slate-500">模组编号</p>

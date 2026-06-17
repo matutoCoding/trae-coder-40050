@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type {
   WorkOrder,
+  WorkOrderStatus,
   WaxMoldingRecord,
   WaxInspectionRecord,
   AssemblyRecord,
@@ -86,46 +87,91 @@ export const useStore = create<AppState>((set, get) => ({
   addWaxMoldingRecord: (record) =>
     set((state) => ({
       waxMoldingRecords: [...state.waxMoldingRecords, record],
+      workOrders: state.workOrders.map((o) =>
+        o.id === record.workOrderId && o.status === 'wax_molding'
+          ? { ...o, status: 'wax_inspection' as WorkOrderStatus, currentProcess: '蜡件检验' }
+          : o
+      ),
     })),
 
   addWaxInspectionRecord: (record) =>
     set((state) => ({
       waxInspectionRecords: [...state.waxInspectionRecords, record],
+      workOrders: state.workOrders.map((o) =>
+        o.id === record.workOrderId && o.status === 'wax_inspection'
+          ? { ...o, status: 'assembly' as WorkOrderStatus, currentProcess: '模组焊接' }
+          : o
+      ),
     })),
 
   addAssemblyRecord: (record) =>
     set((state) => ({
       assemblyRecords: [...state.assemblyRecords, record],
+      workOrders: state.workOrders.map((o) =>
+        o.id === record.workOrderId && o.status === 'assembly'
+          ? { ...o, status: 'shell_making' as WorkOrderStatus, currentProcess: '制壳挂砂' }
+          : o
+      ),
     })),
 
   addShellMakingRecord: (record) =>
     set((state) => ({
       shellMakingRecords: [...state.shellMakingRecords, record],
+      workOrders: state.workOrders.map((o) =>
+        o.id === record.workOrderId && o.status === 'shell_making'
+          ? { ...o, status: 'dewaxing' as WorkOrderStatus, currentProcess: '脱蜡' }
+          : o
+      ),
     })),
 
   addDewaxingRecord: (record) =>
     set((state) => ({
       dewaxingRecords: [...state.dewaxingRecords, record],
+      workOrders: state.workOrders.map((o) =>
+        o.id === record.workOrderId && o.status === 'dewaxing'
+          ? { ...o, status: 'firing' as WorkOrderStatus, currentProcess: '焙烧' }
+          : o
+      ),
     })),
 
   addFiringRecord: (record) =>
     set((state) => ({
       firingRecords: [...state.firingRecords, record],
+      workOrders: state.workOrders.map((o) =>
+        o.id === record.workOrderId && o.status === 'firing'
+          ? { ...o, status: 'melting' as WorkOrderStatus, currentProcess: '合金熔炼' }
+          : o
+      ),
     })),
 
   addMeltingRecord: (record) =>
     set((state) => ({
       meltingRecords: [...state.meltingRecords, record],
+      workOrders: state.workOrders.map((o) =>
+        o.id === record.workOrderId && o.status === 'melting'
+          ? { ...o, status: 'pouring' as WorkOrderStatus, currentProcess: '浇注作业' }
+          : o
+      ),
     })),
 
   addPouringRecord: (record) =>
     set((state) => ({
       pouringRecords: [...state.pouringRecords, record],
+      workOrders: state.workOrders.map((o) =>
+        o.id === record.workOrderId && o.status === 'pouring'
+          ? { ...o, status: 'cleaning' as WorkOrderStatus, currentProcess: '清理打磨' }
+          : o
+      ),
     })),
 
   addCleaningRecord: (record) =>
     set((state) => ({
       cleaningRecords: [...state.cleaningRecords, record],
+      workOrders: state.workOrders.map((o) =>
+        o.id === record.workOrderId && o.status === 'cleaning'
+          ? { ...o, status: 'completed' as WorkOrderStatus, currentProcess: '已完成' }
+          : o
+      ),
     })),
 
   getWorkOrderById: (id) => get().workOrders.find((o) => o.id === id),

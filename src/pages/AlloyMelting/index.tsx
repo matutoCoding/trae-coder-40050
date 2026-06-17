@@ -6,6 +6,7 @@ import { validateForm } from '@/components/FormModal';
 import type { ValidationRule } from '@/components/FormModal';
 import { formatDateTime, generateId } from '@/utils/format';
 import type { Column } from '@/components/DataTable';
+import { Link } from 'react-router-dom';
 import type { MeltingRecord, MaterialItem, CompositionItem } from '@/types';
 import { 
   Eye, Factory, Scale, Thermometer, Clock, FlaskConical, 
@@ -127,9 +128,9 @@ export default function AlloyMelting() {
       render: (record) => {
         const order = getWorkOrderById(record.workOrderId);
         return (
-          <span className="text-sm font-medium text-blue-600">
+          <Link to={`/work-order/${record.workOrderId}`} className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">
             {order?.orderNo || '-'}
-          </span>
+          </Link>
         );
       },
     },
@@ -1011,9 +1012,9 @@ export default function AlloyMelting() {
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <p className="text-sm text-slate-500">工单编号</p>
-                  <p className="text-base font-medium text-slate-800">
+                  <Link to={`/work-order/${selectedRecord.workOrderId}`} className="text-base font-medium text-blue-600 hover:text-blue-800 hover:underline">
                     {getWorkOrderById(selectedRecord.workOrderId)?.orderNo || '-'}
-                  </p>
+                  </Link>
                 </div>
                 <div>
                   <p className="text-sm text-slate-500">中频炉</p>

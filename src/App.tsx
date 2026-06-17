@@ -9,6 +9,7 @@ import DewaxingFiring from "@/pages/DewaxingFiring";
 import AlloyMelting from "@/pages/AlloyMelting";
 import Pouring from "@/pages/Pouring";
 import CleaningPolishing from "@/pages/CleaningPolishing";
+import WorkOrderDetail from "@/pages/WorkOrderDetail";
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/alloy-melting" element={<AlloyMelting />} />
           <Route path="/pouring" element={<Pouring />} />
           <Route path="/cleaning-polishing" element={<CleaningPolishing />} />
+          <Route path="/work-order/:id" element={<WorkOrderDetail />} />
         </Routes>
       </Layout>
     </Router>

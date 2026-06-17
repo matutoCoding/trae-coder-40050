@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useStore } from '@/store/useStore';
 import StatCard from '@/components/StatCard';
 import StatusBadge from '@/components/StatusBadge';
@@ -12,11 +13,31 @@ import {
   Activity,
   Flame,
   Droplets,
-  Layers
+  Layers,
+  Thermometer,
+  ShieldCheck
 } from 'lucide-react';
 
+interface AnomalyItem {
+  type: string;
+  icon: React.ReactNode;
+  color: 'red' | 'orange';
+  orderId: string;
+  orderNo: string;
+  detail: string;
+  value: string;
+}
+
 export default function Dashboard() {
-  const { workOrders, waxMoldingRecords, pouringRecords } = useStore();
+  const { 
+    workOrders, 
+    waxMoldingRecords, 
+    pouringRecords,
+    waxInspectionRecords,
+    shellMakingRecords,
+    firingRecords,
+    getWorkOrderById
+  } = useStore();
 
   const todayOrders = workOrders.filter((o) => 
     o.createdAt.includes('2024-06-16') || o.createdAt.includes('2024-06-17')
@@ -30,6 +51,90 @@ export default function Dashboard() {
   const totalWaxOutput = waxMoldingRecords.reduce((sum, r) => sum + r.outputCount, 0);
   const totalQualifiedWax = waxMoldingRecords.reduce((sum, r) => sum + r.qualifiedCount, 0);
   const waxPassRate = totalWaxOutput > 0 ? Math.round((totalQualifiedWax / totalWaxOutput) * 100) : 0;
+
+  const anomalies = useMemo(() => {
+    const items: AnomalyItem[] = [];
+
+    waxInspectionRecords.forEach((r) => {
+      if (!r.isQualified) {
+        const order = getWorkOrderById(r.workOrderId);
+        items.push({
+          type: '尺寸检验不合格',
+          icon: <AlertTriangle size={18} />,
+          color: 'red',
+          orderId: r.workOrderId,
+          orderNo: order?.orderNo || '-',
+          detail: `样品${r.sampleNo}检验不合格`,
+          value: `${r.dimensions.filter((d) => !d.isQualified).length}项不达标`,
+        });
+      }
+    });
+
+    shellMakingRecords.forEach((r) => {
+      let outOfRange = false;
+      let rangeLabel = '';
+      if (r.layerNumber === 1 && (r.viscosity < 32 || r.viscosity > 38)) {
+        outOfRange = true;
+        rangeLabel = '面层标准32-38s';
+      } else if ((r.layerNumber === 2 || r.layerNumber === 3) && (r.viscosity < 25 || r.viscosity > 30)) {
+        outOfRange = true;
+        rangeLabel = '过渡层标准25-30s';
+      } else if (r.layerNumber >= 4 && (r.viscosity < 20 || r.viscosity > 25)) {
+        outOfRange = true;
+        rangeLabel = '背层标准20-25s';
+      }
+      if (outOfRange) {
+        const order = getWorkOrderById(r.workOrderId);
+        items.push({
+          type: '粘度超范围',
+          icon: <Droplets size={18} />,
+          color: 'orange',
+          orderId: r.workOrderId,
+          orderNo: order?.orderNo || '-',
+          detail: `第${r.layerNumber}层粘度${rangeLabel}`,
+          value: `${r.viscosity}s`,
+        });
+      }
+    });
+
+    firingRecords.forEach((r) => {
+      const overPoints = r.curveData.filter((p) => p.temperature > 1150);
+      if (overPoints.length > 0) {
+        const order = getWorkOrderById(r.workOrderId);
+        const maxTemp = Math.max(...overPoints.map((p) => p.temperature));
+        items.push({
+          type: '焙烧曲线温度异常',
+          icon: <Flame size={18} />,
+          color: 'red',
+          orderId: r.workOrderId,
+          orderNo: order?.orderNo || '-',
+          detail: `${overPoints.length}个数据点超1150°C`,
+          value: `最高${maxTemp}°C`,
+        });
+      }
+    });
+
+    pouringRecords.forEach((r) => {
+      const highTemps = r.temperatureRecords.filter((t) => t.temperature > 1580);
+      if (r.pouringTemperature > 1580 || highTemps.length > 0) {
+        const order = getWorkOrderById(r.workOrderId);
+        const displayTemp = r.pouringTemperature > 1580 ? r.pouringTemperature : highTemps[0].temperature;
+        items.push({
+          type: '浇注温度偏高',
+          icon: <Thermometer size={18} />,
+          color: 'orange',
+          orderId: r.workOrderId,
+          orderNo: order?.orderNo || '-',
+          detail: r.pouringTemperature > 1580
+            ? `浇注温度超标`
+            : `${highTemps.length}个记录点超1580°C`,
+          value: `${displayTemp}°C`,
+        });
+      }
+    });
+
+    return items;
+  }, [waxInspectionRecords, shellMakingRecords, firingRecords, pouringRecords, getWorkOrderById]);
 
   const processSteps = [
     { name: '蜡模压制', count: 2, icon: <Package size={20} />, color: 'amber' },
@@ -71,7 +176,7 @@ export default function Dashboard() {
         />
         <StatCard
           title="待处理预警"
-          value={3}
+          value={anomalies.length}
           unit="项"
           iconType="warning"
           color="red"
@@ -180,7 +285,7 @@ export default function Dashboard() {
               {workOrders.slice(0, 5).map((order) => (
                 <tr key={order.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4">
-                    <span className="text-sm font-medium text-blue-600">{order.orderNo}</span>
+                    <Link to={`/work-order/${order.id}`} className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">{order.orderNo}</Link>
                   </td>
                   <td className="px-6 py-4">
                     <div>
@@ -204,30 +309,58 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h3 className="text-lg font-semibold text-slate-800 mb-4">今日提醒</h3>
-          <div className="space-y-3">
-            <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg">
-              <AlertTriangle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
+          <h3 className="text-lg font-semibold text-slate-800 mb-4">异常提醒</h3>
+          {anomalies.length === 0 ? (
+            <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-lg">
+              <ShieldCheck size={22} className="text-emerald-600 flex-shrink-0" />
               <div>
-                <p className="text-sm font-medium text-amber-800">蜡料库存预警</p>
-                <p className="text-xs text-amber-600 mt-0.5">中温蜡料库存低于安全库存，请及时补充</p>
+                <p className="text-sm font-medium text-emerald-800">暂无异常</p>
+                <p className="text-xs text-emerald-600 mt-0.5">所有检测数据均在正常范围内</p>
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
-              <Clock size={20} className="text-blue-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-blue-800">型壳干燥即将完成</p>
-                <p className="text-xs text-blue-600 mt-0.5">GD202406003 第3层型壳预计2小时后干燥完成</p>
-              </div>
+          ) : (
+            <div className="space-y-3">
+              {anomalies.map((item, idx) => (
+                <div
+                  key={idx}
+                  className={`flex items-start gap-3 p-3 rounded-lg ${
+                    item.color === 'red' ? 'bg-red-50' : 'bg-orange-50'
+                  }`}
+                >
+                  <div className={`flex-shrink-0 mt-0.5 ${
+                    item.color === 'red' ? 'text-red-600' : 'text-orange-600'
+                  }`}>
+                    {item.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-medium ${
+                        item.color === 'red' ? 'text-red-800' : 'text-orange-800'
+                      }`}>
+                        {item.type}
+                      </span>
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                        item.color === 'red' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+                      }`}>
+                        {item.value}
+                      </span>
+                    </div>
+                    <p className={`text-xs mt-0.5 ${
+                      item.color === 'red' ? 'text-red-600' : 'text-orange-600'
+                    }`}>
+                      {item.detail}
+                    </p>
+                    <Link
+                      to={`/work-order/${item.orderId}`}
+                      className="text-xs text-blue-600 hover:text-blue-700 mt-1 inline-block"
+                    >
+                      工单: {item.orderNo} →
+                    </Link>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="flex items-start gap-3 p-3 bg-emerald-50 rounded-lg">
-              <CheckCircle size={20} className="text-emerald-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-emerald-800">焙烧完成</p>
-                <p className="text-xs text-emerald-600 mt-0.5">GD202406005 型壳焙烧已完成，待浇注</p>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 p-6">

@@ -5,6 +5,7 @@ import DataTable from '@/components/DataTable';
 import FormModal, { type ValidationRule, type FormSection } from '@/components/FormModal';
 import { formatDateTime, generateId } from '@/utils/format';
 import type { Column } from '@/components/DataTable';
+import { Link } from 'react-router-dom';
 import type { AssemblyRecord } from '@/types';
 import { Plus, Eye, CheckCircle, XCircle, Wrench, Layers, Thermometer, UserCheck } from 'lucide-react';
 
@@ -200,9 +201,9 @@ export default function AssemblyWelding() {
       render: (record) => {
         const order = getWorkOrderById(record.workOrderId);
         return (
-          <span className="text-sm font-medium text-blue-600">
+          <Link to={`/work-order/${record.workOrderId}`} className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">
             {order?.orderNo || '-'}
-          </span>
+          </Link>
         );
       },
     },
@@ -397,9 +398,9 @@ export default function AssemblyWelding() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-slate-500">工单编号</p>
-                  <p className="text-base font-medium text-blue-600">
+                  <Link to={`/work-order/${selectedRecord.workOrderId}`} className="text-base font-medium text-blue-600 hover:text-blue-800 hover:underline">
                     {getWorkOrderById(selectedRecord.workOrderId)?.orderNo || '-'}
-                  </p>
+                  </Link>
                 </div>
                 <div>
                   <p className="text-sm text-slate-500">产品名称</p>
