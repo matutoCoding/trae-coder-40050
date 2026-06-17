@@ -50,6 +50,7 @@ interface ToolbarProps {
   onSearchChange?: (value: string) => void;
   showFilter?: boolean;
   showExport?: boolean;
+  extraActions?: ReactNode;
   children?: ReactNode;
 }
 
@@ -59,6 +60,7 @@ export function Toolbar({
   onSearchChange,
   showFilter = true,
   showExport = true,
+  extraActions,
   children,
 }: ToolbarProps) {
   return (
@@ -81,6 +83,7 @@ export function Toolbar({
           </button>
         )}
         {children}
+        {extraActions}
       </div>
       {showExport && (
         <button className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">

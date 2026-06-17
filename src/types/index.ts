@@ -156,13 +156,25 @@ export interface MeltingRecord {
   compositionTest?: CompositionItem[];
 }
 
+export interface TemperatureRecord {
+  timePoint: string;
+  temperature: number;
+}
+
 export interface PouringRecord {
   id: string;
   workOrderId: string;
   meltingId: string;
   shellCount: number;
+  shellTemperature: number;
   pouringTemperature: number;
+  temperatureRecords: TemperatureRecord[];
   pouringSpeed: string;
+  ladleNo: string;
+  steelWeight: number;
+  pouredWeight: number;
+  holdingTemperature: number;
+  holdingTime: number;
   operator: string;
   pourTime: string;
   pouredCount: number;
@@ -177,11 +189,14 @@ export interface CleaningRecord {
   workOrderId: string;
   processType: CleaningType;
   equipment: string;
+  equipmentNo: string;
   operator: string;
   startTime: string;
   endTime: string;
   quantity: number;
+  qualifiedCount: number;
   qualityResult: string;
+  unqualifiedReason?: string;
   remark?: string;
 }
 

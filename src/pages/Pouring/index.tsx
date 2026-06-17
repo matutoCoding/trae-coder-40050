@@ -1,22 +1,330 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useStore } from '@/store/useStore';
 import PageHeader, { Toolbar } from '@/components/PageHeader';
 import DataTable from '@/components/DataTable';
-import { formatDateTime } from '@/utils/format';
+import FormModal, { type ValidationRule, type FormSection, type DynamicSection } from '@/components/FormModal';
+import { formatDateTime, generateId } from '@/utils/format';
 import type { Column } from '@/components/DataTable';
-import type { PouringRecord } from '@/types';
-import { Eye, Droplets, Thermometer, CheckCircle } from 'lucide-react';
+import type { PouringRecord, TemperatureRecord } from '@/types';
+import { Eye, Droplets, Thermometer, CheckCircle, Scale, Package } from 'lucide-react';
 
 export default function Pouring() {
-  const { pouringRecords, getWorkOrderById, getMeltingByOrderId } = useStore();
+  const { 
+    pouringRecords, 
+    workOrders,
+    meltingRecords,
+    getWorkOrderById, 
+    getMeltingByOrderId,
+    addPouringRecord
+  } = useStore();
   const [searchText, setSearchText] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<PouringRecord | null>(null);
   const [showDetail, setShowDetail] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const filteredRecords = pouringRecords.filter((r) => {
     const order = getWorkOrderById(r.workOrderId);
     return order?.orderNo.toLowerCase().includes(searchText.toLowerCase());
   });
+
+  const stats = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const todayRecords = pouringRecords.filter(r => 
+      r.pourTime.startsWith(today) || r.pourTime.includes(today)
+    );
+    const totalPoured = pouringRecords.reduce((sum, r) => sum + r.pouredCount, 0);
+    const totalQualified = pouringRecords.reduce((sum, r) => sum + r.qualifiedCount, 0);
+    const totalWeight = pouringRecords.reduce((sum, r) => sum + r.pouredWeight, 0);
+    const passRate = totalPoured > 0 ? ((totalQualified / totalPoured) * 100).toFixed(1) : '0';
+    return [
+      { label: '今日浇注批次', value: String(todayRecords.length), unit: '批', icon: <Droplets size={20} />, color: 'red' },
+      { label: '浇注总数', value: totalPoured.toLocaleString(), unit: '件', icon: <Package size={20} />, color: 'blue' },
+      { label: '合格数量', value: totalQualified.toLocaleString(), unit: '件', icon: <CheckCircle size={20} />, color: 'emerald' },
+      { label: '合格率', value: passRate, unit: '%', icon: <CheckCircle size={20} />, color: 'amber' },
+      { label: '浇注重量', value: totalWeight.toLocaleString(), unit: 'kg', icon: <Scale size={20} />, color: 'purple' },
+    ];
+  }, [pouringRecords]);
+
+  const workOrderOptions = workOrders
+    .filter(o => o.status === 'pouring' || o.status === 'melting' || o.status === 'pending')
+    .map(o => ({ value: o.id, label: `${o.orderNo} - ${o.productName}` }));
+
+  const getMeltingOptions = (workOrderId: string) => {
+    if (!workOrderId) return [];
+    return getMeltingByOrderId(workOrderId).map(m => ({
+      value: m.id,
+      label: `${m.furnaceNo} - ${m.alloyGrade} (${m.totalWeight}kg)`
+    }));
+  };
+
+  const formSections: FormSection[] = [
+    {
+      title: '基本信息',
+      fields: [
+        {
+          name: 'workOrderId',
+          label: '关联工单',
+          type: 'select',
+          required: true,
+          options: workOrderOptions,
+          placeholder: '请选择工单',
+        },
+        {
+          name: 'meltingId',
+          label: '熔炼炉次',
+          type: 'select',
+          required: true,
+          options: [],
+          placeholder: '请先选择工单',
+        },
+        {
+          name: 'ladleNo',
+          label: '浇注包号',
+          type: 'text',
+          required: true,
+          placeholder: '如：LB-001',
+        },
+        {
+          name: 'operator',
+          label: '操作工',
+          type: 'text',
+          required: true,
+          placeholder: '请输入操作工姓名',
+        },
+      ],
+    },
+    {
+      title: '工艺参数',
+      fields: [
+        {
+          name: 'shellCount',
+          label: '浇注型壳数(组)',
+          type: 'number',
+          required: true,
+          placeholder: '请输入型壳组数',
+          step: '1',
+          min: '1',
+        },
+        {
+          name: 'shellTemperature',
+          label: '型壳温度(°C)',
+          type: 'number',
+          required: true,
+          placeholder: '≥800',
+          step: '1',
+          min: '500',
+          max: '1200',
+          defaultValue: 850,
+        },
+        {
+          name: 'pouringTemperature',
+          label: '平均浇注温度(°C)',
+          type: 'number',
+          required: true,
+          placeholder: '1500-1650',
+          step: '1',
+          min: '1400',
+          max: '1700',
+          defaultValue: 1560,
+        },
+        {
+          name: 'pouringSpeed',
+          label: '浇注速度',
+          type: 'select',
+          required: true,
+          options: [
+            { value: '慢速', label: '慢速' },
+            { value: '中速', label: '中速' },
+            { value: '快速', label: '快速' },
+          ],
+          defaultValue: '中速',
+        },
+        {
+          name: 'holdingTemperature',
+          label: '保温温度(°C)',
+          type: 'number',
+          required: true,
+          placeholder: '1500-1580',
+          step: '1',
+          min: '1400',
+          max: '1650',
+          defaultValue: 1540,
+        },
+        {
+          name: 'holdingTime',
+          label: '保温时间(min)',
+          type: 'number',
+          required: true,
+          placeholder: '15-60',
+          step: '1',
+          min: '5',
+          max: '180',
+          defaultValue: 30,
+        },
+      ],
+    },
+    {
+      title: '重量与统计',
+      fields: [
+        {
+          name: 'steelWeight',
+          label: '钢水重量(kg)',
+          type: 'number',
+          required: true,
+          placeholder: '请输入钢水总重量',
+          step: '0.1',
+          min: '1',
+        },
+        {
+          name: 'pouredWeight',
+          label: '浇注重量(kg)',
+          type: 'number',
+          required: true,
+          placeholder: '实际浇注重量',
+          step: '0.1',
+          min: '0',
+        },
+        {
+          name: 'pouredCount',
+          label: '浇注数量(件)',
+          type: 'number',
+          required: true,
+          placeholder: '请输入浇注总数',
+          step: '1',
+          min: '1',
+        },
+        {
+          name: 'qualifiedCount',
+          label: '合格数量(件)',
+          type: 'number',
+          required: true,
+          placeholder: '不能大于浇注数量',
+          step: '1',
+          min: '0',
+        },
+        {
+          name: 'pourTime',
+          label: '浇注时间',
+          type: 'datetime-local',
+          required: true,
+          defaultValue: new Date().toISOString().slice(0, 16),
+          className: 'md:col-span-2',
+        },
+        {
+          name: 'remark',
+          label: '备注',
+          type: 'textarea',
+          placeholder: '选填',
+          className: 'md:col-span-2',
+        },
+      ],
+    },
+  ];
+
+  const temperatureDynamicSection: DynamicSection = {
+    title: '浇注温度记录（多组）',
+    addButtonText: '添加温度记录',
+    keyName: 'temperatureRecords',
+    fields: [
+      {
+        name: 'timePoint',
+        label: '时间点',
+        type: 'text',
+        required: true,
+        placeholder: '如：开始浇注/中期/结束',
+        defaultValue: '中期',
+      },
+      {
+        name: 'temperature',
+        label: '温度(°C)',
+        type: 'number',
+        required: true,
+        placeholder: '1500-1650',
+        step: '1',
+        min: '1400',
+        max: '1700',
+        defaultValue: 1560,
+      },
+    ],
+    minItems: 1,
+  };
+
+  const validationRules: ValidationRule[] = [
+    { field: 'workOrderId', label: '关联工单', required: true },
+    { field: 'meltingId', label: '熔炼炉次', required: true },
+    { field: 'ladleNo', label: '浇注包号', required: true },
+    { field: 'operator', label: '操作工', required: true },
+    { field: 'shellCount', label: '浇注型壳数', required: true, type: 'number', min: 1 },
+    { field: 'shellTemperature', label: '型壳温度', required: true, type: 'number', min: 500, max: 1200 },
+    { field: 'pouringTemperature', label: '平均浇注温度', required: true, type: 'number', min: 1400, max: 1700 },
+    { field: 'pouringSpeed', label: '浇注速度', required: true },
+    { field: 'holdingTemperature', label: '保温温度', required: true, type: 'number', min: 1400, max: 1650 },
+    { field: 'holdingTime', label: '保温时间', required: true, type: 'number', min: 5, max: 180 },
+    { field: 'steelWeight', label: '钢水重量', required: true, type: 'number', min: 1 },
+    { 
+      field: 'pouredWeight', 
+      label: '浇注重量', 
+      required: true, 
+      type: 'number', 
+      min: 0,
+      custom: (value, allValues) => {
+        const pw = Number(value);
+        const sw = Number(allValues.steelWeight);
+        if (pw > sw) return '浇注重量不能大于钢水重量';
+        return null;
+      }
+    },
+    { field: 'pouredCount', label: '浇注数量', required: true, type: 'number', min: 1 },
+    { 
+      field: 'qualifiedCount', 
+      label: '合格数量', 
+      required: true, 
+      type: 'number', 
+      min: 0,
+      custom: (value, allValues) => {
+        const q = Number(value);
+        const p = Number(allValues.pouredCount);
+        if (q > p) return '合格数量不能大于浇注数量';
+        return null;
+      }
+    },
+    { field: 'pourTime', label: '浇注时间', required: true },
+  ];
+
+  const handleSubmit = (values: Record<string, unknown>) => {
+    const formatDT = (v: unknown) => {
+      const s = String(v);
+      return s.includes('T') ? s.replace('T', ' ') + ':00' : s;
+    };
+
+    const tempRecords = (values.temperatureRecords as Record<string, unknown>[] || []).map(r => ({
+      timePoint: String(r.timePoint),
+      temperature: Number(r.temperature),
+    }));
+
+    const newRecord: PouringRecord = {
+      id: generateId('pr'),
+      workOrderId: String(values.workOrderId),
+      meltingId: String(values.meltingId),
+      shellCount: Number(values.shellCount),
+      shellTemperature: Number(values.shellTemperature),
+      pouringTemperature: Number(values.pouringTemperature),
+      temperatureRecords: tempRecords,
+      pouringSpeed: String(values.pouringSpeed),
+      ladleNo: String(values.ladleNo),
+      steelWeight: Number(values.steelWeight),
+      pouredWeight: Number(values.pouredWeight),
+      holdingTemperature: Number(values.holdingTemperature),
+      holdingTime: Number(values.holdingTime),
+      operator: String(values.operator),
+      pourTime: formatDT(values.pourTime),
+      pouredCount: Number(values.pouredCount),
+      qualifiedCount: Number(values.qualifiedCount),
+      remark: values.remark ? String(values.remark) : undefined,
+    };
+    addPouringRecord(newRecord);
+    setShowAddModal(false);
+  };
 
   const columns: Column<PouringRecord>[] = [
     {
@@ -32,35 +340,46 @@ export default function Pouring() {
       },
     },
     {
+      key: 'ladleNo',
+      title: '浇注包号',
+      render: (record) => <span className="text-sm font-medium">{record.ladleNo}</span>,
+    },
+    {
       key: 'shellCount',
-      title: '浇注型壳数',
+      title: '型壳数',
       render: (record) => (
         <span className="text-sm">{record.shellCount} 组</span>
       ),
     },
     {
+      key: 'shellTemperature',
+      title: '型壳温度',
+      render: (record) => (
+        <span className="text-sm text-orange-600">{record.shellTemperature}°C</span>
+      ),
+    },
+    {
       key: 'pouringTemperature',
-      title: '浇注温度(°C)',
+      title: '浇注温度',
       render: (record) => (
         <span className="text-sm font-medium text-red-600">{record.pouringTemperature}°C</span>
       ),
     },
     {
-      key: 'pouringSpeed',
-      title: '浇注速度',
-    },
-    {
-      key: 'pouredCount',
-      title: '浇注数量',
+      key: 'pouredWeight',
+      title: '浇注重量',
       render: (record) => (
-        <span className="text-sm">{record.pouredCount} 件</span>
+        <span className="text-sm">{record.pouredWeight} kg</span>
       ),
     },
     {
-      key: 'qualifiedCount',
-      title: '合格数量',
+      key: 'pouredCount',
+      title: '浇注/合格',
       render: (record) => (
-        <span className="text-sm text-emerald-600 font-medium">{record.qualifiedCount} 件</span>
+        <span className="text-sm">
+          <span>{record.pouredCount}</span>
+          <span className="text-emerald-600 font-medium"> / {record.qualifiedCount}</span>
+        </span>
       ),
     },
     {
@@ -93,9 +412,13 @@ export default function Pouring() {
     },
   ];
 
-  const totalPoured = pouringRecords.reduce((sum, r) => sum + r.pouredCount, 0);
-  const totalQualified = pouringRecords.reduce((sum, r) => sum + r.qualifiedCount, 0);
-  const passRate = totalPoured > 0 ? Math.round((totalQualified / totalPoured) * 100) : 0;
+  const statColorClasses: Record<string, { bg: string; text: string }> = {
+    red: { bg: 'bg-red-50', text: 'text-red-600' },
+    blue: { bg: 'bg-blue-50', text: 'text-blue-600' },
+    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600' },
+    amber: { bg: 'bg-amber-50', text: 'text-amber-600' },
+    purple: { bg: 'bg-purple-50', text: 'text-purple-600' },
+  };
 
   return (
     <div className="space-y-6">
@@ -103,53 +426,27 @@ export default function Pouring() {
         title="浇注作业"
         description="管理浇注作业记录，监控浇注温度和质量"
         addButtonText="新增浇注记录"
+        onAdd={() => setShowAddModal(true)}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500">今日浇注批次</p>
-              <p className="text-2xl font-bold text-slate-800 mt-1">{pouringRecords.length} 批</p>
-            </div>
-            <div className="p-3 bg-red-50 rounded-xl">
-              <Droplets size={24} className="text-red-600" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500">浇注总数</p>
-              <p className="text-2xl font-bold text-blue-600 mt-1">{totalPoured} 件</p>
-            </div>
-            <div className="p-3 bg-blue-50 rounded-xl">
-              <Thermometer size={24} className="text-blue-600" />
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        {stats.map((stat) => (
+          <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-500">{stat.label}</p>
+                <p className="text-2xl font-bold text-slate-800 mt-1">
+                  {stat.value} <span className="text-sm font-normal text-slate-500">{stat.unit}</span>
+                </p>
+              </div>
+              <div className={`p-3 ${statColorClasses[stat.color]?.bg || 'bg-slate-50'} rounded-xl`}>
+                <div className={statColorClasses[stat.color]?.text || 'text-slate-600'}>
+                  {stat.icon}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500">合格数量</p>
-              <p className="text-2xl font-bold text-emerald-600 mt-1">{totalQualified} 件</p>
-            </div>
-            <div className="p-3 bg-emerald-50 rounded-xl">
-              <CheckCircle size={24} className="text-emerald-600" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500">合格率</p>
-              <p className="text-2xl font-bold text-amber-600 mt-1">{passRate}%</p>
-            </div>
-            <div className="p-3 bg-amber-50 rounded-xl">
-              <CheckCircle size={24} className="text-amber-600" />
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -180,7 +477,7 @@ export default function Pouring() {
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h3 className="text-lg font-semibold text-slate-800 mb-4">今日温度记录</h3>
+          <h3 className="text-lg font-semibold text-slate-800 mb-4">今日温度参考</h3>
           <div className="space-y-3">
             {[
               { time: '09:00', temp: 1565, status: '正常' },
@@ -233,16 +530,28 @@ export default function Pouring() {
         />
       </div>
 
+      <FormModal
+        isOpen={showAddModal}
+        title="新增浇注记录"
+        sections={formSections}
+        dynamicSection={temperatureDynamicSection}
+        validationRules={validationRules}
+        onClose={() => setShowAddModal(false)}
+        onSubmit={handleSubmit}
+        submitText="保存记录"
+        size="xl"
+      />
+
       {showDetail && selectedRecord && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-auto">
+          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-auto">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-slate-800">浇注详情</h3>
               <button
                 onClick={() => setShowDetail(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 p-1"
               >
-                ✕
+                ×
               </button>
             </div>
             <div className="p-6 space-y-6">
@@ -254,24 +563,16 @@ export default function Pouring() {
                   </p>
                 </div>
                 <div>
+                  <p className="text-sm text-slate-500">浇注包号</p>
+                  <p className="text-base font-medium text-slate-800">{selectedRecord.ladleNo}</p>
+                </div>
+                <div>
                   <p className="text-sm text-slate-500">型壳数量</p>
                   <p className="text-base font-medium text-slate-800">{selectedRecord.shellCount} 组</p>
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500">浇注温度</p>
-                  <p className="text-base font-medium text-red-600">{selectedRecord.pouringTemperature}°C</p>
-                </div>
-                <div>
                   <p className="text-sm text-slate-500">浇注速度</p>
                   <p className="text-base font-medium text-slate-800">{selectedRecord.pouringSpeed}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">浇注数量</p>
-                  <p className="text-base font-medium text-slate-800">{selectedRecord.pouredCount} 件</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">合格数量</p>
-                  <p className="text-base font-medium text-emerald-600">{selectedRecord.qualifiedCount} 件</p>
                 </div>
                 <div>
                   <p className="text-sm text-slate-500">操作工</p>
@@ -280,6 +581,58 @@ export default function Pouring() {
                 <div>
                   <p className="text-sm text-slate-500">浇注时间</p>
                   <p className="text-base font-medium text-slate-800">{formatDateTime(selectedRecord.pourTime)}</p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-xl">
+                <h4 className="text-sm font-semibold text-slate-700 mb-3">温度参数</h4>
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-orange-600">{selectedRecord.shellTemperature}°C</p>
+                    <p className="text-xs text-slate-500 mt-1">型壳温度</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-red-600">{selectedRecord.pouringTemperature}°C</p>
+                    <p className="text-xs text-slate-500 mt-1">浇注温度</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-amber-600">{selectedRecord.holdingTemperature}°C</p>
+                    <p className="text-xs text-slate-500 mt-1">保温温度</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-blue-600">{selectedRecord.holdingTime} min</p>
+                    <p className="text-xs text-slate-500 mt-1">保温时间</p>
+                  </div>
+                </div>
+              </div>
+
+              {selectedRecord.temperatureRecords && selectedRecord.temperatureRecords.length > 0 && (
+                <div className="p-4 bg-red-50 rounded-xl">
+                  <h4 className="text-sm font-semibold text-red-700 mb-3">浇注温度记录</h4>
+                  <div className="space-y-2">
+                    {selectedRecord.temperatureRecords.map((record: TemperatureRecord, idx: number) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold">
+                            {idx + 1}
+                          </span>
+                          <span className="text-sm text-slate-600">{record.timePoint}</span>
+                        </div>
+                        <span className="text-sm font-bold text-red-600">{record.temperature}°C</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-slate-500">钢水重量</p>
+                  <p className="text-base font-medium text-slate-800">{selectedRecord.steelWeight} kg</p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">浇注重量</p>
+                  <p className="text-base font-medium text-slate-800">{selectedRecord.pouredWeight} kg</p>
                 </div>
               </div>
 
@@ -293,7 +646,9 @@ export default function Pouring() {
                   </div>
                   <div className="text-right">
                     <p className="text-3xl font-bold text-emerald-600">
-                      {Math.round((selectedRecord.qualifiedCount / selectedRecord.pouredCount) * 100)}%
+                      {selectedRecord.pouredCount > 0 
+                        ? Math.round((selectedRecord.qualifiedCount / selectedRecord.pouredCount) * 100)
+                        : 0}%
                     </p>
                     <p className="text-xs text-emerald-500">合格率</p>
                   </div>
