@@ -136,15 +136,20 @@ export default function Dashboard() {
     return items;
   }, [waxInspectionRecords, shellMakingRecords, firingRecords, pouringRecords, getWorkOrderById]);
 
-  const processSteps = [
-    { name: '蜡模压制', count: 2, icon: <Package size={20} />, color: 'amber' },
-    { name: '模组焊接', count: 2, icon: <Activity size={20} />, color: 'yellow' },
-    { name: '制壳挂砂', count: 1, icon: <Layers size={20} />, color: 'blue' },
-    { name: '脱蜡焙烧', count: 1, icon: <Flame size={20} />, color: 'orange' },
-    { name: '合金熔炼', count: 1, icon: <Droplets size={20} />, color: 'red' },
-    { name: '浇注作业', count: 1, icon: <Droplets size={20} />, color: 'rose' },
-    { name: '清理打磨', count: 1, icon: <CheckCircle size={20} />, color: 'teal' },
-  ];
+  const processSteps = useMemo(() => {
+    const countByStatus = (statuses: string[]) =>
+      workOrders.filter((o) => statuses.includes(o.status)).length;
+
+    return [
+      { name: '蜡模压制', count: countByStatus(['wax_molding']), icon: <Package size={20} />, color: 'amber' },
+      { name: '模组焊接', count: countByStatus(['assembly']), icon: <Activity size={20} />, color: 'yellow' },
+      { name: '制壳挂砂', count: countByStatus(['shell_making']), icon: <Layers size={20} />, color: 'blue' },
+      { name: '脱蜡焙烧', count: countByStatus(['dewaxing', 'firing']), icon: <Flame size={20} />, color: 'orange' },
+      { name: '合金熔炼', count: countByStatus(['melting']), icon: <Droplets size={20} />, color: 'red' },
+      { name: '浇注作业', count: countByStatus(['pouring']), icon: <Droplets size={20} />, color: 'rose' },
+      { name: '清理打磨', count: countByStatus(['cleaning']), icon: <CheckCircle size={20} />, color: 'teal' },
+    ];
+  }, [workOrders]);
 
   return (
     <div className="space-y-6">

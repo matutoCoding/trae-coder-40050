@@ -25,6 +25,20 @@ import {
   mockCleaningRecords,
 } from '@/data/mockData';
 
+const statusOrder: WorkOrderStatus[] = [
+  'pending',
+  'wax_molding',
+  'wax_inspection',
+  'assembly',
+  'shell_making',
+  'dewaxing',
+  'firing',
+  'melting',
+  'pouring',
+  'cleaning',
+  'completed',
+];
+
 interface AppState {
   workOrders: WorkOrder[];
   waxMoldingRecords: WaxMoldingRecord[];
@@ -88,7 +102,8 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => ({
       waxMoldingRecords: [...state.waxMoldingRecords, record],
       workOrders: state.workOrders.map((o) =>
-        o.id === record.workOrderId && o.status === 'wax_molding'
+        o.id === record.workOrderId &&
+        statusOrder.indexOf(o.status) <= statusOrder.indexOf('wax_molding')
           ? { ...o, status: 'wax_inspection' as WorkOrderStatus, currentProcess: '蜡件检验' }
           : o
       ),
@@ -98,7 +113,8 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => ({
       waxInspectionRecords: [...state.waxInspectionRecords, record],
       workOrders: state.workOrders.map((o) =>
-        o.id === record.workOrderId && o.status === 'wax_inspection'
+        o.id === record.workOrderId &&
+        statusOrder.indexOf(o.status) <= statusOrder.indexOf('wax_inspection')
           ? { ...o, status: 'assembly' as WorkOrderStatus, currentProcess: '模组焊接' }
           : o
       ),
@@ -108,7 +124,8 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => ({
       assemblyRecords: [...state.assemblyRecords, record],
       workOrders: state.workOrders.map((o) =>
-        o.id === record.workOrderId && o.status === 'assembly'
+        o.id === record.workOrderId &&
+        statusOrder.indexOf(o.status) <= statusOrder.indexOf('assembly')
           ? { ...o, status: 'shell_making' as WorkOrderStatus, currentProcess: '制壳挂砂' }
           : o
       ),
@@ -118,7 +135,8 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => ({
       shellMakingRecords: [...state.shellMakingRecords, record],
       workOrders: state.workOrders.map((o) =>
-        o.id === record.workOrderId && o.status === 'shell_making'
+        o.id === record.workOrderId &&
+        statusOrder.indexOf(o.status) <= statusOrder.indexOf('shell_making')
           ? { ...o, status: 'dewaxing' as WorkOrderStatus, currentProcess: '脱蜡' }
           : o
       ),
@@ -128,7 +146,8 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => ({
       dewaxingRecords: [...state.dewaxingRecords, record],
       workOrders: state.workOrders.map((o) =>
-        o.id === record.workOrderId && o.status === 'dewaxing'
+        o.id === record.workOrderId &&
+        statusOrder.indexOf(o.status) <= statusOrder.indexOf('dewaxing')
           ? { ...o, status: 'firing' as WorkOrderStatus, currentProcess: '焙烧' }
           : o
       ),
@@ -138,7 +157,8 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => ({
       firingRecords: [...state.firingRecords, record],
       workOrders: state.workOrders.map((o) =>
-        o.id === record.workOrderId && o.status === 'firing'
+        o.id === record.workOrderId &&
+        statusOrder.indexOf(o.status) <= statusOrder.indexOf('firing')
           ? { ...o, status: 'melting' as WorkOrderStatus, currentProcess: '合金熔炼' }
           : o
       ),
@@ -148,7 +168,8 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => ({
       meltingRecords: [...state.meltingRecords, record],
       workOrders: state.workOrders.map((o) =>
-        o.id === record.workOrderId && o.status === 'melting'
+        o.id === record.workOrderId &&
+        statusOrder.indexOf(o.status) <= statusOrder.indexOf('melting')
           ? { ...o, status: 'pouring' as WorkOrderStatus, currentProcess: '浇注作业' }
           : o
       ),
@@ -158,7 +179,8 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => ({
       pouringRecords: [...state.pouringRecords, record],
       workOrders: state.workOrders.map((o) =>
-        o.id === record.workOrderId && o.status === 'pouring'
+        o.id === record.workOrderId &&
+        statusOrder.indexOf(o.status) <= statusOrder.indexOf('pouring')
           ? { ...o, status: 'cleaning' as WorkOrderStatus, currentProcess: '清理打磨' }
           : o
       ),
@@ -168,7 +190,8 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => ({
       cleaningRecords: [...state.cleaningRecords, record],
       workOrders: state.workOrders.map((o) =>
-        o.id === record.workOrderId && o.status === 'cleaning'
+        o.id === record.workOrderId &&
+        statusOrder.indexOf(o.status) <= statusOrder.indexOf('cleaning')
           ? { ...o, status: 'completed' as WorkOrderStatus, currentProcess: '已完成' }
           : o
       ),
