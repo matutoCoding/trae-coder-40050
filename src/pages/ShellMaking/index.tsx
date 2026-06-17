@@ -139,8 +139,15 @@ export default function ShellMaking() {
         label: '模组编号',
         type: 'select',
         required: true,
-        options: [],
-        placeholder: '先选工单后可选择模组',
+        dependsOn: 'workOrderId',
+        getOptions: (values) =>
+          values.workOrderId
+            ? getAssemblyByOrderId(String(values.workOrderId)).map((a) => ({
+                value: a.id,
+                label: a.assemblyNo,
+              }))
+            : [],
+        placeholder: '请先选择工单',
       },
       {
         name: 'layerNumber',
@@ -980,7 +987,7 @@ export default function ShellMaking() {
                           </td>
                           <td className="px-4 py-3 text-center text-sm">第 {record.layer} 层</td>
                           <td className="px-4 py-3 text-center text-sm text-slate-500">
-                            {record.startTime}
+                            {formatDateTime(record.startTime)}
                           </td>
                           <td className="px-4 py-3 text-center text-sm">{record.duration} h</td>
                           <td className="px-4 py-3 text-center text-sm">
@@ -1070,6 +1077,12 @@ export default function ShellMaking() {
                   <p className="text-sm text-slate-500">工单编号</p>
                   <p className="text-base font-medium text-slate-800">
                     {getWorkOrderById(selectedRecord.workOrderId)?.orderNo || '-'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">模组编号</p>
+                  <p className="text-base font-medium text-slate-800">
+                    {assemblyRecords.find((a) => a.id === selectedRecord.assemblyId)?.assemblyNo || '-'}
                   </p>
                 </div>
                 <div>

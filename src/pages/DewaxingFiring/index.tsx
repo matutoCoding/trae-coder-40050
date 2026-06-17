@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useStore } from '@/store/useStore';
 import PageHeader, { Toolbar } from '@/components/PageHeader';
 import DataTable from '@/components/DataTable';
-import FormModal, { type ValidationRule, type FormSection } from '@/components/FormModal';
+import FormModal, { type ValidationRule, type FormSection, type DynamicSection } from '@/components/FormModal';
 import { formatDateTime, generateId } from '@/utils/format';
 import type { Column } from '@/components/DataTable';
 import type { DewaxingRecord, FiringRecord, CurvePoint } from '@/types';
@@ -346,11 +346,17 @@ export default function DewaxingFiring() {
     },
   ];
 
-  const curveDynamicSection = {
+  const curveDynamicSection: DynamicSection = {
     title: '焙烧曲线数据点',
     addButtonText: '添加曲线点',
     keyName: 'curveData',
-    minItems: 2,
+    minItems: 3,
+    filterEmpty: true,
+    itemValidationRules: [
+      { field: 'stage', label: '阶段描述', required: true },
+      { field: 'time', label: '时间', required: true, type: 'number', min: 0 },
+      { field: 'temperature', label: '温度', required: true, type: 'number', min: 0 },
+    ],
     fields: [
       {
         name: 'stage',
@@ -379,7 +385,7 @@ export default function DewaxingFiring() {
         min: '0',
         max: '1500',
       },
-    ] as const,
+    ],
   };
 
   const handleAddDewaxing = (values: Record<string, unknown>) => {
@@ -869,7 +875,7 @@ export default function DewaxingFiring() {
         isOpen={showAddFiringModal}
         title="新增焙烧记录"
         sections={firingFormSections}
-        dynamicSection={curveDynamicSection as any}
+        dynamicSection={curveDynamicSection}
         validationRules={firingValidationRules}
         onClose={() => setShowAddFiringModal(false)}
         onSubmit={handleAddFiring}

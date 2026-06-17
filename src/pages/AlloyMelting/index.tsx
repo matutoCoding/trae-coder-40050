@@ -297,18 +297,50 @@ export default function AlloyMelting() {
     let hasMaterialError = false;
     let hasCompositionError = false;
     
-    if (materials.length === 0) {
-      newErrors['materials'] = '请至少添加一条配料明细';
+    const filteredMaterials = materials.filter(mat => 
+      mat.name.trim() || mat.standardRange.trim() || mat.actualWeight.trim() || mat.percentage.trim()
+    );
+
+    if (filteredMaterials.length < 2) {
+      newErrors['materials'] = '请至少添加2种配料明细';
       hasMaterialError = true;
     } else {
-      materials.forEach((mat, idx) => {
+      filteredMaterials.forEach((mat, idx) => {
         if (!mat.name.trim()) {
           newErrors[`material_name_${idx}`] = `第${idx + 1}条配料名称不能为空`;
           hasMaterialError = true;
         }
-        if (!mat.actualWeight.trim() || isNaN(Number(mat.actualWeight))) {
-          newErrors[`material_weight_${idx}`] = `第${idx + 1}条实际加入量必须为有效数字`;
+        if (!mat.actualWeight.trim() || isNaN(Number(mat.actualWeight)) || Number(mat.actualWeight) <= 0) {
+          newErrors[`material_weight_${idx}`] = `第${idx + 1}条实际加入量必须为大于0的有效数字`;
           hasMaterialError = true;
+        }
+        if (!mat.percentage.trim() || isNaN(Number(mat.percentage)) || Number(mat.percentage) <= 0) {
+          newErrors[`material_percentage_${idx}`] = `第${idx + 1}条占比必须为大于0的有效数字`;
+          hasMaterialError = true;
+        }
+      });
+    }
+
+    const filteredCompositions = compositions.filter(comp => 
+      comp.element.trim() || comp.standard.trim() || comp.content.trim()
+    );
+
+    if (filteredCompositions.length > 0 && filteredCompositions.length < 3) {
+      newErrors['compositions'] = '成分检测至少需要3种元素检测';
+      hasCompositionError = true;
+    } else if (filteredCompositions.length >= 3) {
+      filteredCompositions.forEach((comp, idx) => {
+        if (!comp.element.trim()) {
+          newErrors[`composition_element_${idx}`] = `第${idx + 1}条元素名称不能为空`;
+          hasCompositionError = true;
+        }
+        if (!comp.content.trim() || isNaN(Number(comp.content))) {
+          newErrors[`composition_content_${idx}`] = `第${idx + 1}条含量必须为有效数字`;
+          hasCompositionError = true;
+        }
+        if (!comp.standard.trim()) {
+          newErrors[`composition_standard_${idx}`] = `第${idx + 1}条标准值不能为空`;
+          hasCompositionError = true;
         }
       });
     }
@@ -324,15 +356,16 @@ export default function AlloyMelting() {
       return s.includes('T') ? s.replace('T', ' ') + ':00' : s;
     };
 
-    const materialItems: MaterialItem[] = materials.map(mat => ({
+    const materialItems: MaterialItem[] = filteredMaterials.map(mat => ({
       name: mat.name.trim(),
       weight: Number(mat.actualWeight),
-      percentage: mat.percentage ? Number(mat.percentage) : 0,
+      percentage: Number(mat.percentage),
+      standard: mat.standardRange.trim() || undefined,
     }));
 
     let compositionItems: CompositionItem[] | undefined;
-    if (compositions.length > 0) {
-      compositionItems = compositions.map(comp => ({
+    if (filteredCompositions.length > 0) {
+      compositionItems = filteredCompositions.map(comp => ({
         element: comp.element.trim(),
         content: Number(comp.content) || 0,
         standard: comp.standard.trim(),
@@ -783,7 +816,7 @@ export default function AlloyMelting() {
                               </div>
                               <div>
                                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                                  占比(%)
+                                  占比(%)<span className="text-red-500 ml-0.5">*</span>
                                 </label>
                                 <input
                                   type="number"
@@ -793,8 +826,9 @@ export default function AlloyMelting() {
                                   step="0.01"
                                   min="0"
                                   max="100"
-                                  className="w-full px-3 py-2 border border-slate-200 bg-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                                  className={inputClass(`material_percentage_${index}`)}
                                 />
+                                {renderFieldError(`material_percentage_${index}`)}
                               </div>
                             </div>
                           </div>
@@ -815,6 +849,8 @@ export default function AlloyMelting() {
                       </button>
                     </div>
 
+                    {renderFieldError('compositions')}
+
                     {compositions.length === 0 ? (
                       <div className="p-8 border-2 border-dashed border-slate-200 rounded-xl text-center text-slate-400 text-sm">
                         点击上方「添加检测项」按钮添加成分检测结果（可选）
@@ -834,31 +870,33 @@ export default function AlloyMelting() {
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                               <div>
                                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                                  元素符号
+                                  元素符号<span className="text-red-500 ml-0.5">*</span>
                                 </label>
                                 <input
                                   type="text"
                                   value={item.element}
                                   onChange={(e) => updateCompositionItem(index, 'element', e.target.value)}
                                   placeholder="如：Ti、Al、V"
-                                  className="w-full px-3 py-2 border border-slate-200 bg-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                                  className={inputClass(`composition_element_${index}`)}
                                 />
+                                {renderFieldError(`composition_element_${index}`)}
                               </div>
                               <div>
                                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                                  标准值(%)
+                                  标准值(%)<span className="text-red-500 ml-0.5">*</span>
                                 </label>
                                 <input
                                   type="text"
                                   value={item.standard}
                                   onChange={(e) => updateCompositionItem(index, 'standard', e.target.value)}
                                   placeholder="如：6.0-6.5"
-                                  className="w-full px-3 py-2 border border-slate-200 bg-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                                  className={inputClass(`composition_standard_${index}`)}
                                 />
+                                {renderFieldError(`composition_standard_${index}`)}
                               </div>
                               <div>
                                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                                  检测值(%)
+                                  检测值(%)<span className="text-red-500 ml-0.5">*</span>
                                 </label>
                                 <input
                                   type="number"
@@ -866,8 +904,9 @@ export default function AlloyMelting() {
                                   onChange={(e) => updateCompositionItem(index, 'content', e.target.value)}
                                   placeholder="0.000"
                                   step="0.001"
-                                  className="w-full px-3 py-2 border border-slate-200 bg-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                                  className={inputClass(`composition_content_${index}`)}
                                 />
+                                {renderFieldError(`composition_content_${index}`)}
                               </div>
                               <div>
                                 <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -993,9 +1032,10 @@ export default function AlloyMelting() {
                     <thead>
                       <tr className="border-b border-amber-200">
                         <th className="text-left py-2 px-3 text-xs font-medium text-amber-700">序号</th>
-                        <th className="text-left py-2 px-3 text-xs font-medium text-amber-700">配料名称</th>
-                        <th className="text-right py-2 px-3 text-xs font-medium text-amber-700">实际加入量</th>
-                        <th className="text-right py-2 px-3 text-xs font-medium text-amber-700">占比</th>
+                        <th className="text-left py-2 px-3 text-xs font-medium text-amber-700">名称</th>
+                        <th className="text-left py-2 px-3 text-xs font-medium text-amber-700">标准范围</th>
+                        <th className="text-right py-2 px-3 text-xs font-medium text-amber-700">加入量(Kg)</th>
+                        <th className="text-right py-2 px-3 text-xs font-medium text-amber-700">占比(%)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1003,6 +1043,7 @@ export default function AlloyMelting() {
                         <tr key={index} className="border-b border-amber-100 last:border-0">
                           <td className="py-2 px-3 text-amber-900">#{index + 1}</td>
                           <td className="py-2 px-3 text-amber-900 font-medium">{mat.name}</td>
+                          <td className="py-2 px-3 text-amber-700">{mat.standard || '-'}</td>
                           <td className="py-2 px-3 text-amber-900 text-right font-medium">{mat.weight} kg</td>
                           <td className="py-2 px-3 text-amber-900 text-right">
                             {mat.percentage > 0 ? `${mat.percentage}%` : '-'}
@@ -1010,7 +1051,7 @@ export default function AlloyMelting() {
                         </tr>
                       ))}
                       <tr className="border-t-2 border-amber-300 bg-amber-100/50">
-                        <td colSpan={2} className="py-3 px-3 text-amber-900 font-semibold">合计</td>
+                        <td colSpan={3} className="py-3 px-3 text-amber-900 font-semibold">合计</td>
                         <td className="py-3 px-3 text-amber-900 text-right font-bold text-base">
                           {selectedRecord.totalWeight} kg
                         </td>
@@ -1063,19 +1104,19 @@ export default function AlloyMelting() {
                       <thead>
                         <tr className="border-b border-slate-200">
                           <th className="text-left py-2 px-3 text-xs font-medium text-slate-500">元素</th>
+                          <th className="text-left py-2 px-3 text-xs font-medium text-slate-500">标准范围</th>
                           <th className="text-right py-2 px-3 text-xs font-medium text-slate-500">检测值(%)</th>
-                          <th className="text-right py-2 px-3 text-xs font-medium text-slate-500">标准范围</th>
-                          <th className="text-center py-2 px-3 text-xs font-medium text-slate-500">判定</th>
+                          <th className="text-center py-2 px-3 text-xs font-medium text-slate-500">判定结果</th>
                         </tr>
                       </thead>
                       <tbody>
                         {selectedRecord.compositionTest.map((item, index) => (
                           <tr key={index} className="border-b border-slate-100 last:border-0 hover:bg-slate-100/50 transition-colors">
                             <td className="py-3 px-3 text-slate-800 font-semibold">{item.element}</td>
+                            <td className="py-3 px-3 text-slate-600">{item.standard || '-'}</td>
                             <td className="py-3 px-3 text-slate-800 text-right font-medium">
                               {item.content}%
                             </td>
-                            <td className="py-3 px-3 text-slate-500 text-right">{item.standard}%</td>
                             <td className="py-3 px-3 text-center">
                               <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
                                 item.isQualified 

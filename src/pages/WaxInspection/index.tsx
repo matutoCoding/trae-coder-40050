@@ -138,6 +138,13 @@ export default function WaxInspection() {
     addButtonText: '添加检验项',
     keyName: 'dimensions',
     minItems: 1,
+    filterEmpty: true,
+    itemValidationRules: [
+      { field: 'name', label: '检测项目', required: true },
+      { field: 'standard', label: '标准值', required: true, type: 'number' },
+      { field: 'tolerance', label: '公差', required: true, type: 'number', min: 0 },
+      { field: 'actual', label: '实测值', required: true, type: 'number' },
+    ],
     fields: [
       {
         name: 'name',

@@ -74,8 +74,14 @@ export default function Pouring() {
           label: '熔炼炉次',
           type: 'select',
           required: true,
-          options: [],
-          placeholder: '请先选择工单',
+          dependsOn: 'workOrderId',
+          getOptions: (values) => values.workOrderId 
+            ? getMeltingByOrderId(String(values.workOrderId)).map(m => ({
+                value: m.id,
+                label: `${m.furnaceNo} - ${m.alloyGrade}`,
+              }))
+            : [],
+          placeholder: '请选择熔炼炉次',
         },
         {
           name: 'ladleNo',
@@ -225,6 +231,12 @@ export default function Pouring() {
     title: '浇注温度记录（多组）',
     addButtonText: '添加温度记录',
     keyName: 'temperatureRecords',
+    minItems: 1,
+    filterEmpty: true,
+    itemValidationRules: [
+      { field: 'timePoint', label: '时间点', required: true },
+      { field: 'temperature', label: '温度', required: true, type: 'number', min: 1400, max: 1700 },
+    ],
     fields: [
       {
         name: 'timePoint',
@@ -246,7 +258,6 @@ export default function Pouring() {
         defaultValue: 1560,
       },
     ],
-    minItems: 1,
   };
 
   const validationRules: ValidationRule[] = [
@@ -297,10 +308,12 @@ export default function Pouring() {
       return s.includes('T') ? s.replace('T', ' ') + ':00' : s;
     };
 
-    const tempRecords = (values.temperatureRecords as Record<string, unknown>[] || []).map(r => ({
-      timePoint: String(r.timePoint),
-      temperature: Number(r.temperature),
-    }));
+    const tempRecords = Array.isArray(values.temperatureRecords)
+      ? (values.temperatureRecords as Record<string, unknown>[]).map(r => ({
+          timePoint: String(r.timePoint),
+          temperature: Number(r.temperature),
+        }))
+      : [];
 
     const newRecord: PouringRecord = {
       id: generateId('pr'),
@@ -607,20 +620,43 @@ export default function Pouring() {
               </div>
 
               {selectedRecord.temperatureRecords && selectedRecord.temperatureRecords.length > 0 && (
-                <div className="p-4 bg-red-50 rounded-xl">
-                  <h4 className="text-sm font-semibold text-red-700 mb-3">浇注温度记录</h4>
-                  <div className="space-y-2">
-                    {selectedRecord.temperatureRecords.map((record: TemperatureRecord, idx: number) => (
-                      <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold">
-                            {idx + 1}
-                          </span>
-                          <span className="text-sm text-slate-600">{record.timePoint}</span>
-                        </div>
-                        <span className="text-sm font-bold text-red-600">{record.temperature}°C</span>
-                      </div>
-                    ))}
+                <div className="p-4 bg-slate-50 rounded-xl">
+                  <h4 className="text-sm font-semibold text-slate-700 mb-3">浇注温度记录</h4>
+                  <div className="overflow-hidden rounded-lg border border-slate-200">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-100">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">序号</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">时间点</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">温度(°C)</th>
+                          <th className="px-4 py-2 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">状态</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-slate-200">
+                        {selectedRecord.temperatureRecords.map((record: TemperatureRecord, idx: number) => {
+                          const isHigh = record.temperature > 1580;
+                          return (
+                            <tr key={idx} className="hover:bg-slate-50">
+                              <td className="px-4 py-3 text-slate-600">{idx + 1}</td>
+                              <td className="px-4 py-3 text-slate-700">{record.timePoint}</td>
+                              <td className={`px-4 py-3 text-right font-bold ${isHigh ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                {record.temperature}°C
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  isHigh 
+                                    ? 'bg-amber-100 text-amber-700' 
+                                    : 'bg-emerald-100 text-emerald-700'
+                                }`}>
+                                  <Thermometer size={12} className="mr-1" />
+                                  {isHigh ? '偏高' : '正常'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}

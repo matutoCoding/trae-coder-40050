@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { X, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export interface ValidationRule {
@@ -17,6 +17,8 @@ export interface FormField {
   type: 'text' | 'number' | 'textarea' | 'select' | 'datetime-local';
   placeholder?: string;
   options?: { value: string; label: string }[];
+  getOptions?: (values: Record<string, unknown>) => { value: string; label: string }[];
+  dependsOn?: string;
   defaultValue?: string | number;
   required?: boolean;
   step?: string;
@@ -36,6 +38,8 @@ export interface DynamicSection {
   fields: FormField[];
   keyName: string;
   minItems?: number;
+  itemValidationRules?: ValidationRule[];
+  filterEmpty?: boolean;
 }
 
 interface FormModalProps {
@@ -99,6 +103,36 @@ export function validateForm(
   return errors;
 }
 
+function validateDynamicItems(
+  items: Record<string, unknown>[],
+  rules: ValidationRule[],
+  sectionTitle: string
+): { errors: Record<string, string>; errorList: string[] } {
+  const errors: Record<string, string> = {};
+  const errorList: string[] = [];
+
+  items.forEach((item, index) => {
+    const itemErrors = validateForm(item, rules);
+    if (Object.keys(itemErrors).length > 0) {
+      Object.entries(itemErrors).forEach(([field, message]) => {
+        errors[`${sectionTitle}-${index}-${field}`] = message;
+        errorList.push(`第${index + 1}条${message}`);
+      });
+    }
+  });
+
+  return { errors, errorList };
+}
+
+function isEmptyItem(item: Record<string, unknown>): boolean {
+  return Object.values(item).every((v) => {
+    if (v === undefined || v === null) return true;
+    if (typeof v === 'string') return v.trim() === '';
+    if (typeof v === 'number') return isNaN(v);
+    return false;
+  });
+}
+
 export default function FormModal({
   isOpen,
   title,
@@ -114,6 +148,19 @@ export default function FormModal({
   const [dynamicItems, setDynamicItems] = useState<Record<string, unknown>[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showSuccess, setShowSuccess] = useState(false);
+  const [errorList, setErrorList] = useState<string[]>([]);
+
+  const resolvedFields = useMemo(() => {
+    const resolved: Record<string, { value: string; label: string }[]> = {};
+    sections.forEach((section) => {
+      section.fields.forEach((field) => {
+        if (field.getOptions) {
+          resolved[field.name] = field.getOptions(values);
+        }
+      });
+    });
+    return resolved;
+  }, [sections, values]);
 
   useEffect(() => {
     if (isOpen) {
@@ -128,9 +175,25 @@ export default function FormModal({
       setValues(initialValues);
       setDynamicItems(dynamicSection ? [] : []);
       setErrors({});
+      setErrorList([]);
       setShowSuccess(false);
     }
   }, [isOpen, sections, dynamicSection]);
+
+  useEffect(() => {
+    sections.forEach((section) => {
+      section.fields.forEach((field) => {
+        if (field.dependsOn && field.getOptions) {
+          const options = field.getOptions(values);
+          const currentValue = String(values[field.name] ?? '');
+          const hasValue = options.some((o) => o.value === currentValue);
+          if (!hasValue && currentValue !== '') {
+            setValues((prev) => ({ ...prev, [field.name]: '' }));
+          }
+        }
+      });
+    });
+  }, [values, sections]);
 
   if (!isOpen) return null;
 
@@ -170,8 +233,36 @@ export default function FormModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const newErrors = validateForm(values, validationRules);
+    const newErrors: Record<string, string> = {};
+    const newErrorList: string[] = [];
+
+    const formErrors = validateForm(values, validationRules);
+    Object.assign(newErrors, formErrors);
+    newErrorList.push(...Object.values(formErrors));
+
+    if (dynamicSection) {
+      const items = dynamicSection.filterEmpty
+        ? dynamicItems.filter((item) => !isEmptyItem(item))
+        : dynamicItems;
+
+      if (dynamicSection.minItems !== undefined && items.length < dynamicSection.minItems) {
+        newErrors[`${dynamicSection.keyName}-min`] = `${dynamicSection.title}至少需要${dynamicSection.minItems}条记录`;
+        newErrorList.push(`${dynamicSection.title}至少需要${dynamicSection.minItems}条有效记录`);
+      }
+
+      if (dynamicSection.itemValidationRules && items.length > 0) {
+        const { errors: itemErrors, errorList: itemErrorList } = validateDynamicItems(
+          items,
+          dynamicSection.itemValidationRules,
+          dynamicSection.title
+        );
+        Object.assign(newErrors, itemErrors);
+        newErrorList.push(...itemErrorList);
+      }
+    }
+
     setErrors(newErrors);
+    setErrorList(newErrorList);
 
     if (Object.keys(newErrors).length > 0) {
       return;
@@ -179,7 +270,10 @@ export default function FormModal({
 
     const submitData = { ...values };
     if (dynamicSection) {
-      submitData[dynamicSection.keyName] = dynamicItems;
+      const items = dynamicSection.filterEmpty
+        ? dynamicItems.filter((item) => !isEmptyItem(item))
+        : dynamicItems;
+      submitData[dynamicSection.keyName] = items;
     }
 
     setShowSuccess(true);
@@ -192,14 +286,39 @@ export default function FormModal({
     onClose();
   };
 
-  const renderField = (field: FormField, value: unknown, onChange: (name: string, value: string | number) => void, prefix = '') => {
-    const fieldName = prefix + field.name;
+  const getFieldOptions = (field: FormField) => {
+    if (field.getOptions) {
+      return resolvedFields[field.name] || [];
+    }
+    return field.options || [];
+  };
+
+  const renderField = (
+    field: FormField,
+    value: unknown,
+    onChange: (name: string, value: string | number) => void,
+    errorPrefix = ''
+  ) => {
+    const fieldName = field.name;
+    const errorKey = errorPrefix ? `${errorPrefix}-${field.name}` : field.name;
     const fieldValue = String(value ?? '');
-    const hasError = !!errors[fieldName];
+    const hasError = !!errors[errorKey];
 
     const baseInputClass = `w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
       hasError ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-white'
     }`;
+
+    const options = getFieldOptions(field);
+    const isDisabled = field.dependsOn && !values[field.dependsOn];
+
+    const getDependsOnLabel = () => {
+      if (!field.dependsOn) return '';
+      for (const section of sections) {
+        const found = section.fields.find((f) => f.name === field.dependsOn);
+        if (found) return found.label;
+      }
+      return field.dependsOn;
+    };
 
     return (
       <div key={fieldName} className={field.className || ''}>
@@ -241,10 +360,13 @@ export default function FormModal({
           <select
             value={fieldValue}
             onChange={(e) => onChange(field.name, e.target.value)}
-            className={baseInputClass}
+            disabled={isDisabled}
+            className={`${baseInputClass} ${isDisabled ? 'bg-slate-100 cursor-not-allowed text-slate-400' : ''}`}
           >
-            <option value="">请选择</option>
-            {field.options?.map((opt) => (
+            <option value="">
+              {isDisabled ? `请先选择${getDependsOnLabel()}` : field.placeholder || '请选择'}
+            </option>
+            {options.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
@@ -262,14 +384,12 @@ export default function FormModal({
         {hasError && (
           <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
             <AlertCircle size={12} />
-            {errors[fieldName]}
+            {errors[errorKey]}
           </p>
         )}
       </div>
     );
   };
-
-  const now = new Date().toISOString().slice(0, 16);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -306,11 +426,7 @@ export default function FormModal({
                   )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {section.fields.map((field) =>
-                      renderField(
-                        { ...field, name: field.name },
-                        values[field.name],
-                        handleChange
-                      )
+                      renderField(field, values[field.name], handleChange)
                     )}
                   </div>
                 </div>
@@ -319,7 +435,14 @@ export default function FormModal({
               {dynamicSection && (
                 <div>
                   <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
-                    <h4 className="text-sm font-semibold text-slate-700">{dynamicSection.title}</h4>
+                    <h4 className="text-sm font-semibold text-slate-700">
+                      {dynamicSection.title}
+                      {dynamicSection.minItems && (
+                        <span className="text-xs font-normal text-slate-400 ml-2">
+                          （至少{dynamicSection.minItems}条）
+                        </span>
+                      )}
+                    </h4>
                     <button
                       type="button"
                       onClick={addDynamicItem}
@@ -344,13 +467,23 @@ export default function FormModal({
                           >
                             <X size={16} />
                           </button>
-                          <p className="text-xs font-medium text-slate-500 mb-3">记录 #{index + 1}</p>
+                          <p className="text-xs font-medium text-slate-500 mb-3">
+                            记录 #{index + 1}
+                            {errors[`${dynamicSection.title}-${index}-`] ||
+                            Object.keys(errors).some(
+                              (k) =>
+                                k.startsWith(`${dynamicSection.title}-${index}-`)
+                            ) ? (
+                              <span className="text-red-500 ml-2">存在错误</span>
+                            ) : null}
+                          </p>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {dynamicSection.fields.map((field) =>
                               renderField(
                                 field,
                                 item[field.name],
-                                (name, value) => handleDynamicChange(index, name, value)
+                                (name, value) => handleDynamicChange(index, name, value),
+                                `${dynamicSection.title}-${index}`
                               )
                             )}
                           </div>
@@ -361,15 +494,15 @@ export default function FormModal({
                 </div>
               )}
 
-              {Object.keys(errors).length > 0 && (
+              {errorList.length > 0 && (
                 <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
                   <div className="flex items-center gap-2 text-red-700 mb-2">
                     <AlertCircle size={16} />
                     <p className="text-sm font-medium">请检查以下问题：</p>
                   </div>
                   <ul className="text-xs text-red-600 space-y-1 ml-6 list-disc">
-                    {Object.entries(errors).map(([field, message]) => (
-                      <li key={field}>{message}</li>
+                    {errorList.map((msg, idx) => (
+                      <li key={idx}>{msg}</li>
                     ))}
                   </ul>
                 </div>

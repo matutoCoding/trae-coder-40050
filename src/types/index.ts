@@ -132,6 +132,7 @@ export interface MaterialItem {
   name: string;
   weight: number;
   percentage: number;
+  standard?: string;
 }
 
 export interface CompositionItem {
